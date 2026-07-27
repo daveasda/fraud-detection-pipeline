@@ -29,3 +29,15 @@ def generate_transaction(user_id:str):
         'card_last_four':f'{random.randint(1000,9999)}',
         'country': random.choice(['US', 'UK', 'CA', 'DE', 'FR', 'AU'])
     }
+
+def send_transaction(transaction:dict):
+    try:
+        future = producer.send(TOPIC, value=transaction)
+        record_metadata = future.get(timeout=10)
+        print(f"Sent transaction {transaction['transaction_id']} to {record_metadata.topic}")
+        return True
+
+    except KafkaError as e:
+        print(f"Failed to send transaction: {e}")
+        return False
+
