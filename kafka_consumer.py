@@ -58,4 +58,32 @@ class FraudDetector:
               except psycopg2.Error as e:
                     print(f"Error storing raw transaction: {e}")
                     self.conn.rollback()
-        
+
+        def get_user_stats(self, user_id, days=7):
+                try:
+                        with self.conn.cursor() as cur:
+                            cutoff_time = datetime.utcnow() - timedelta(days=days)
+                            cur.execute("""
+                                SELECT 
+                                    COUNT(*) as tx_count,           -- how many transactions?
+                                    AVG(amount) as avg_amount,      -- what's the average?
+                                    STDDEV(amount) as std_dev,      -- what's the spread?
+                                    MAX(amount) as max_amount,      -- what's the max?
+                                    MIN(amount) as min_amount       -- what's the min?
+                                FROM raw_transactions
+                                WHERE user_id = %s 
+                                AND timestamp >= %s
+                            """, (user_id, cutoff_time))
+                            
+                            result = cur.fetchone()
+                            return {
+                                'count': result[0] or 0,           # If NULL, use 0
+                                'avg': float(result[1]) if result[1] else 0,
+                                'stddev': float(result[2]) if result[2] else 0,
+                                'max': float(result[3]) if result[3] else 0,
+                                'min': float(result[4]) if result[4] else 0,
+                            }
+                except psycopg2.Error as e:
+                        print(f"Error fetching user stats: {e}")
+                        return {}
+                
