@@ -30,7 +30,7 @@ def generate_transaction(user_id:str):
         'country': random.choice(['US', 'UK', 'CA', 'DE', 'FR', 'AU'])
     }
 
-def send_transaction(transaction:dict):
+def send_to_kafka(transaction:dict):
     try:
         future = producer.send(TOPIC, value=transaction)
         record_metadata = future.get(timeout=10)
