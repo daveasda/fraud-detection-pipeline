@@ -1,9 +1,11 @@
 import json
+from audioop import avg
 import psycopg2
 from datetime import datetime, timedelta
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
 from psycopg2.extras import execute_values
+from scipy import stats
 
 KAFKA_BROKER = 'localhost:9092'
 TOPIC = 'transactions'
@@ -86,4 +88,42 @@ class FraudDetector:
                 except psycopg2.Error as e:
                         print(f"Error fetching user stats: {e}")
                         return {}
-                
+
+        def detect_fraud(self, transaction):
+                user_id = transaction['user_id']
+                amount = transaction['amount']
+                stats = self.get_user_stats(user_id, days=30)
+
+                if stats['count'] < 5:
+                    fraud_score = 0.1
+                    reason = "insufficient_history"
+                    is_fraud = False
+
+                else:
+                     avg_spend = stats['avg']
+                     stddev = stats['stddev']
+
+                if stddev == 0:
+                    fraud_score = 0.2 if amount > avg_spend * 2 else 0.1
+                    reason = "consistent_spender_deviation" if amount > avg_spend * 2 else "normal"
+                    is_fraud = amount > avg_spend * 2
+
+                else:
+
+                    z_score = (amount - avg_spend) / stddev
+                    fraud_score = min(1.0, abs(z_score) / 10)
+
+                    if z_score > FRAUD_THRESHOLD_SIGMA:
+                    
+                        is_fraud = True
+                        reason = f"{z_score:.2f}_sigma_outlier"
+                        
+                    else:
+                        is_fraud = False
+                        reason = "normal"
+
+                return {
+                    'is_fraud': is_fraud,
+                    'fraud_score': round(fraud_score, 4),
+                    'stats': stats
+                }
